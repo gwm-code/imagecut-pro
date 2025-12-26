@@ -1,7 +1,8 @@
 import { removeBackground, Config } from '@imgly/background-removal';
 
-// Update to match the installed package version (1.5.5) to ensure assets (wasm, onnx, json) exist.
-const MODEL_ASSET_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.5.5/dist/';
+// Using the official static.img.ly CDN which is more reliable for these assets than JSDelivr.
+// We are pinning to version 1.3.0 which is known to have a stable directory structure.
+const MODEL_ASSET_URL = 'https://static.img.ly/background-removal-data/1.3.0/dist/';
 
 export const removeBackgroundAI = async (
     imageSrc: string,
@@ -19,7 +20,7 @@ export const removeBackgroundAI = async (
            onProgress(percent, `Downloading ${niceName}...`);
         }
       },
-      debug: false // Set to true if you need to see library internal logs
+      debug: true // Enable debug to help trace issues in console if they occur
     };
 
     // The removeBackground function from the npm package handles everything
