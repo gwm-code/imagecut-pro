@@ -1,8 +1,7 @@
 import { removeBackground, Config } from '@imgly/background-removal';
 
-// We point to the CDN for the heavy model assets (wasm, onnx) to keep the bundle size small
-// and ensure fast delivery via JSDelivr global CDN.
-const MODEL_ASSET_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.5.0/dist/';
+// Update to match the installed package version (1.5.5) to ensure assets (wasm, onnx, json) exist.
+const MODEL_ASSET_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.5.5/dist/';
 
 export const removeBackgroundAI = async (
     imageSrc: string,
