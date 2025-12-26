@@ -196,16 +196,18 @@ export default function App() {
             icon={<Sliders size={20} />} 
             label="Adjust" 
           />
+          {/* Swapped Icon to Eraser, Renamed to AI BG */}
           <ToolButton 
             active={activeTool === 'filters'} 
             onClick={() => setActiveTool('filters')}
-            icon={<Wand2 size={20} />} 
-            label="Filters" 
+            icon={<Eraser size={20} />} 
+            label="AI BG" 
           />
+           {/* Swapped Icon to Wand2 */}
            <ToolButton 
             active={activeTool === 'magic-wand'} 
             onClick={() => setActiveTool('magic-wand')}
-            icon={<Eraser size={20} />} 
+            icon={<Wand2 size={20} />} 
             label="Magic" 
           />
           <div className="w-px h-8 md:w-full md:h-px bg-zinc-800 mx-1 md:mx-2 md:my-2" />
@@ -324,7 +326,7 @@ export default function App() {
           <h2 className="font-semibold text-xs md:text-sm uppercase tracking-wider text-zinc-500">
             {activeTool === 'adjust' ? 'Adjustments' : 
              activeTool === 'magic-wand' ? 'Magic Cut Tool' : 
-             activeTool === 'filters' ? 'AI & Filters' : 'Tools'}
+             activeTool === 'filters' ? 'AI Background Removal' : 'Tools'}
           </h2>
           <span className="md:hidden text-zinc-600 text-[10px] uppercase">
              {/* Mobile indicator could go here if needed */}
@@ -366,6 +368,24 @@ export default function App() {
                 unit="px"
                 disabled={!imageSrc}
               />
+               {/* Moved Grayscale/Sepia here */}
+               <Slider 
+                label="Grayscale" 
+                value={adjustments.grayscale} 
+                min={0} max={100} 
+                onChange={(v) => updateAdjustment('grayscale', v)} 
+                unit="%"
+                disabled={!imageSrc}
+              />
+              <Slider 
+                label="Sepia" 
+                value={adjustments.sepia} 
+                min={0} max={100} 
+                onChange={(v) => updateAdjustment('sepia', v)} 
+                unit="%"
+                disabled={!imageSrc}
+              />
+
                <div className="pt-2 md:pt-4 border-t border-zinc-800">
                  <button 
                   onClick={() => setAdjustments(DEFAULT_ADJUSTMENTS)}
@@ -382,7 +402,8 @@ export default function App() {
             <div className="space-y-4 md:space-y-6">
                <div className="p-3 md:p-4 bg-indigo-900/20 border border-indigo-900/50 rounded-lg mb-4 md:mb-6">
                 <h3 className="text-indigo-300 text-xs md:text-sm font-medium mb-1 md:mb-2 flex items-center gap-2">
-                  <Wand2 size={14} /> AI Background Removal
+                   {/* Swapped Icon to Eraser */}
+                  <Eraser size={14} /> AI Background Removal
                 </h3>
                 <p className="text-[10px] md:text-xs text-indigo-200/60 mb-2 md:mb-3 leading-relaxed">
                   Best for people and objects.
@@ -395,25 +416,6 @@ export default function App() {
                   Remove Background (AI)
                 </button>
               </div>
-
-              <div className="space-y-4 md:space-y-6">
-                <Slider 
-                  label="Grayscale" 
-                  value={adjustments.grayscale} 
-                  min={0} max={100} 
-                  onChange={(v) => updateAdjustment('grayscale', v)} 
-                  unit="%"
-                  disabled={!imageSrc}
-                />
-                <Slider 
-                  label="Sepia" 
-                  value={adjustments.sepia} 
-                  min={0} max={100} 
-                  onChange={(v) => updateAdjustment('sepia', v)} 
-                  unit="%"
-                  disabled={!imageSrc}
-                />
-              </div>
             </div>
           )}
 
@@ -421,7 +423,8 @@ export default function App() {
             <div className="space-y-4 md:space-y-6">
                <div className="p-3 md:p-4 bg-emerald-900/20 border border-emerald-900/50 rounded-lg mb-4 md:mb-6">
                 <h3 className="text-emerald-300 text-xs md:text-sm font-medium mb-1 md:mb-2 flex items-center gap-2">
-                  <Eraser size={14} /> Magic Cut Mode
+                   {/* Swapped Icon to Wand2 */}
+                  <Wand2 size={14} /> Magic Cut Mode
                 </h3>
                 <p className="text-[10px] md:text-xs text-emerald-200/60 mb-2 md:mb-3 leading-relaxed">
                   Click on any color in the image to remove it.
