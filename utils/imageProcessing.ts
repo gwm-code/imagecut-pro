@@ -7,7 +7,8 @@ export const DEFAULT_ADJUSTMENTS: Adjustments = {
   blur: 0,
   grayscale: 0,
   sepia: 0,
-  rotation: 0
+  rotation: 0,
+  flipX: false
 };
 
 export const applyFiltersToCanvas = (
@@ -20,10 +21,16 @@ export const applyFiltersToCanvas = (
   
   ctx.save();
   
-  // Handle Rotation
+  // 1. Move to center
   ctx.translate(width / 2, height / 2);
+  
+  // 2. Rotate
   ctx.rotate((adjustments.rotation * Math.PI) / 180);
-  ctx.translate(-width / 2, -height / 2);
+  
+  // 3. Flip (Mirror)
+  if (adjustments.flipX) {
+    ctx.scale(-1, 1);
+  }
 
   // Apply Filters
   const filterString = `
@@ -36,8 +43,8 @@ export const applyFiltersToCanvas = (
   `;
   ctx.filter = filterString.trim();
 
-  // Draw Image centered
-  ctx.drawImage(img, 0, 0, width, height);
+  // 4. Draw Image offset by half size to center it
+  ctx.drawImage(img, -width / 2, -height / 2, width, height);
   
   ctx.restore();
 };
@@ -81,8 +88,6 @@ export const performMagicWand = (
   const toleranceSq = tolerance * tolerance * 3; // Scaling tolerance for RGB euclidean dist approx
 
   const stack = [[startX, startY]];
-  // Use a Uint8Array for visited to be safe against loops if we don't set alpha to 0 immediately or if logic changes
-  // But setting alpha to 0 is enough for "visited" check if we treat alpha=0 as boundary.
   
   // Optimization: Pre-calculate indices to avoid repeated math
   while (stack.length) {

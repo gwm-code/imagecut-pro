@@ -6,6 +6,7 @@ export interface Adjustments {
   grayscale: number;  // 0 is default
   sepia: number;      // 0 is default
   rotation: number;   // 0 degrees
+  flipX: boolean;     // false is default
 }
 
 export type ActiveTool = 'adjust' | 'filters' | 'magic-wand' | 'crop';

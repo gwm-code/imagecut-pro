@@ -9,7 +9,8 @@ import {
   Undo2,
   Image as ImageIcon,
   Loader2,
-  Eraser
+  Eraser,
+  FlipHorizontal
 } from 'lucide-react';
 import { removeBackground } from '@imgly/background-removal';
 import { Slider } from './components/ui/Slider';
@@ -154,7 +155,7 @@ export default function App() {
     }
   };
 
-  const updateAdjustment = (key: keyof Adjustments, value: number) => {
+  const updateAdjustment = (key: keyof Adjustments, value: any) => {
     setAdjustments(prev => ({ ...prev, [key]: value }));
   };
 
@@ -202,6 +203,12 @@ export default function App() {
             onClick={() => updateAdjustment('rotation', (adjustments.rotation + 90) % 360)}
             icon={<RotateCw size={20} />} 
             label="Rotate" 
+          />
+          <ToolButton 
+            active={adjustments.flipX}
+            onClick={() => updateAdjustment('flipX', !adjustments.flipX)}
+            icon={<FlipHorizontal size={20} />} 
+            label="Mirror" 
           />
         </div>
 
