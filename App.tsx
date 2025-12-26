@@ -168,17 +168,28 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-200 overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen bg-zinc-950 text-zinc-200 overflow-hidden">
       
-      {/* LEFT TOOLBAR */}
-      <aside className="w-20 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-6 z-10">
-        <div className="mb-8">
+      {/* LEFT TOOLBAR (Desktop) / BOTTOM NAVBAR (Mobile) */}
+      <aside className="
+        order-3 md:order-1 
+        w-full md:w-20 
+        bg-zinc-900 
+        border-t md:border-r md:border-t-0 border-zinc-800 
+        flex flex-row md:flex-col 
+        items-center justify-between md:justify-start 
+        py-2 px-4 md:py-6 md:px-0
+        z-20 shrink-0
+        overflow-x-auto md:overflow-visible
+        scrollbar-hide
+      ">
+        <div className="hidden md:block mb-8">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/20">
             <span className="text-2xl">✂️</span>
           </div>
         </div>
 
-        <div className="space-y-4 w-full px-2">
+        <div className="flex flex-row md:flex-col gap-2 md:gap-4 w-full md:px-2">
           <ToolButton 
             active={activeTool === 'adjust'} 
             onClick={() => setActiveTool('adjust')}
@@ -195,9 +206,9 @@ export default function App() {
             active={activeTool === 'magic-wand'} 
             onClick={() => setActiveTool('magic-wand')}
             icon={<Eraser size={20} />} 
-            label="Magic Cut" 
+            label="Magic" 
           />
-          <div className="h-px bg-zinc-800 mx-2 my-2" />
+          <div className="w-px h-8 md:w-full md:h-px bg-zinc-800 mx-1 md:mx-2 md:my-2" />
            <ToolButton 
             active={false}
             onClick={() => updateAdjustment('rotation', (adjustments.rotation + 90) % 360)}
@@ -212,7 +223,7 @@ export default function App() {
           />
         </div>
 
-        <div className="mt-auto space-y-4 w-full px-2">
+        <div className="flex flex-row md:flex-col gap-2 md:gap-4 md:mt-auto w-auto md:w-full md:px-2 border-l md:border-l-0 md:border-t border-zinc-800 pl-4 md:pl-0 md:pt-4 ml-2 md:ml-0">
            <ToolButton 
             active={false}
             onClick={() => handleUndo()}
@@ -231,40 +242,45 @@ export default function App() {
       </aside>
 
       {/* CENTER CANVAS AREA */}
-      <main className="flex-1 relative bg-zinc-950 flex flex-col">
+      <main className="order-1 md:order-2 flex-1 relative bg-zinc-950 flex flex-col min-h-0">
         {/* Top Header */}
-        <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm">
-          <h1 className="font-semibold text-lg tracking-tight">PureCut <span className="text-indigo-400">Pro</span></h1>
+        <header className="h-14 md:h-16 border-b border-zinc-800 flex items-center justify-between px-4 md:px-6 bg-zinc-900/50 backdrop-blur-sm shrink-0">
+          <h1 className="font-semibold text-lg tracking-tight flex items-center gap-2">
+            <span className="md:hidden">✂️</span>
+            PureCut <span className="text-indigo-400">Pro</span>
+          </h1>
           
-          <div className="flex gap-3">
-            <label className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg cursor-pointer transition-colors text-sm font-medium">
-              <Upload size={16} />
-              <span>Open Image</span>
+          <div className="flex gap-2 md:gap-3">
+            <label className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg cursor-pointer transition-colors text-xs md:text-sm font-medium whitespace-nowrap">
+              <Upload size={14} className="md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Open Image</span>
+              <span className="sm:hidden">Open</span>
               <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
             </label>
             
             <button 
               onClick={handleDownload}
               disabled={!imageSrc}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white transition-colors text-sm font-medium shadow-lg shadow-indigo-900/20"
+              className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white transition-colors text-xs md:text-sm font-medium shadow-lg shadow-indigo-900/20 whitespace-nowrap"
             >
-              <Download size={16} />
-              <span>Export</span>
+              <Download size={14} className="md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Export</span>
+              <span className="sm:hidden">Save</span>
             </button>
           </div>
         </header>
 
         {/* Canvas Wrapper */}
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-8 bg-zinc-950/50">
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4 md:p-8 bg-zinc-950/50">
           {!imageSrc ? (
-            <div className="text-center p-12 border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30">
-              <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ImageIcon className="text-zinc-500" size={32} />
+            <div className="text-center p-8 md:p-12 border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30 mx-4">
+              <div className="w-12 h-12 md:w-16 md:h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ImageIcon className="text-zinc-500 w-6 h-6 md:w-8 md:h-8" />
               </div>
-              <h3 className="text-xl font-medium text-zinc-300 mb-2">No image loaded</h3>
-              <p className="text-zinc-500 mb-6 max-w-xs mx-auto">Upload an image to start editing background, adjusting colors, and applying filters.</p>
-              <label className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl cursor-pointer transition-colors font-medium">
-                <Upload size={18} />
+              <h3 className="text-lg md:text-xl font-medium text-zinc-300 mb-2">No image loaded</h3>
+              <p className="text-sm text-zinc-500 mb-6 max-w-xs mx-auto">Upload an image to start editing.</p>
+              <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl cursor-pointer transition-colors font-medium text-sm">
+                <Upload size={16} />
                 <span>Select Image</span>
                 <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
               </label>
@@ -274,12 +290,12 @@ export default function App() {
                <canvas 
                 ref={canvasRef} 
                 onClick={handleCanvasClick}
-                className={`max-w-full max-h-[80vh] object-contain block ${activeTool === 'magic-wand' ? 'cursor-crosshair' : ''}`}
+                className={`max-w-full max-h-[50vh] md:max-h-[80vh] object-contain block ${activeTool === 'magic-wand' ? 'cursor-crosshair' : ''}`}
               />
               {isProcessing && (
                 <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-50 backdrop-blur-sm">
                   <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-                  <p className="text-white font-medium">{processingMessage}</p>
+                  <p className="text-white font-medium text-sm text-center px-4">{processingMessage}</p>
                 </div>
               )}
             </div>
@@ -288,25 +304,36 @@ export default function App() {
         
         {/* Instruction Toast for Magic Wand */}
         {activeTool === 'magic-wand' && imageSrc && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-800/90 text-zinc-200 px-4 py-2 rounded-full text-sm font-medium border border-zinc-700 shadow-xl pointer-events-none">
-            Click on a color to remove it (Magic Wand)
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-zinc-800/90 text-zinc-200 px-3 py-1.5 rounded-full text-xs font-medium border border-zinc-700 shadow-xl pointer-events-none whitespace-nowrap z-30">
+            Tap color to remove
           </div>
         )}
       </main>
 
-      {/* RIGHT PROPERTIES PANEL */}
-      <aside className="w-72 bg-zinc-900 border-l border-zinc-800 flex flex-col z-10">
-        <div className="p-5 border-b border-zinc-800">
-          <h2 className="font-semibold text-sm uppercase tracking-wider text-zinc-500">
+      {/* RIGHT PROPERTIES PANEL (Bottom on Mobile) */}
+      <aside className="
+        order-2 md:order-3
+        w-full md:w-72 
+        bg-zinc-900 
+        border-t md:border-l md:border-t-0 border-zinc-800 
+        flex flex-col 
+        z-10 shrink-0
+        h-auto max-h-[35vh] md:max-h-full md:h-full
+      ">
+        <div className="p-3 md:p-5 border-b border-zinc-800 flex justify-between items-center sticky top-0 bg-zinc-900 z-10">
+          <h2 className="font-semibold text-xs md:text-sm uppercase tracking-wider text-zinc-500">
             {activeTool === 'adjust' ? 'Adjustments' : 
              activeTool === 'magic-wand' ? 'Magic Cut Tool' : 
              activeTool === 'filters' ? 'AI & Filters' : 'Tools'}
           </h2>
+          <span className="md:hidden text-zinc-600 text-[10px] uppercase">
+             {/* Mobile indicator could go here if needed */}
+          </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto p-4 md:p-5 scrollbar-thin">
           {activeTool === 'adjust' && (
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               <Slider 
                 label="Brightness" 
                 value={adjustments.brightness} 
@@ -339,10 +366,10 @@ export default function App() {
                 unit="px"
                 disabled={!imageSrc}
               />
-               <div className="pt-4 border-t border-zinc-800">
+               <div className="pt-2 md:pt-4 border-t border-zinc-800">
                  <button 
                   onClick={() => setAdjustments(DEFAULT_ADJUSTMENTS)}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 py-1"
                   disabled={!imageSrc}
                  >
                    <Undo2 size={12} /> Reset Adjustments
@@ -352,13 +379,13 @@ export default function App() {
           )}
 
           {activeTool === 'filters' && (
-            <div className="space-y-6">
-               <div className="p-4 bg-indigo-900/20 border border-indigo-900/50 rounded-lg mb-6">
-                <h3 className="text-indigo-300 text-sm font-medium mb-2 flex items-center gap-2">
+            <div className="space-y-4 md:space-y-6">
+               <div className="p-3 md:p-4 bg-indigo-900/20 border border-indigo-900/50 rounded-lg mb-4 md:mb-6">
+                <h3 className="text-indigo-300 text-xs md:text-sm font-medium mb-1 md:mb-2 flex items-center gap-2">
                   <Wand2 size={14} /> AI Background Removal
                 </h3>
-                <p className="text-xs text-indigo-200/60 mb-3 leading-relaxed">
-                  Best for people and objects. May over-crop complex logos.
+                <p className="text-[10px] md:text-xs text-indigo-200/60 mb-2 md:mb-3 leading-relaxed">
+                  Best for people and objects.
                 </p>
                 <button
                   onClick={handleRemoveBackground}
@@ -369,7 +396,7 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 md:space-y-6">
                 <Slider 
                   label="Grayscale" 
                   value={adjustments.grayscale} 
@@ -391,17 +418,14 @@ export default function App() {
           )}
 
           {activeTool === 'magic-wand' && (
-            <div className="space-y-6">
-               <div className="p-4 bg-emerald-900/20 border border-emerald-900/50 rounded-lg mb-6">
-                <h3 className="text-emerald-300 text-sm font-medium mb-2 flex items-center gap-2">
+            <div className="space-y-4 md:space-y-6">
+               <div className="p-3 md:p-4 bg-emerald-900/20 border border-emerald-900/50 rounded-lg mb-4 md:mb-6">
+                <h3 className="text-emerald-300 text-xs md:text-sm font-medium mb-1 md:mb-2 flex items-center gap-2">
                   <Eraser size={14} /> Magic Cut Mode
                 </h3>
-                <p className="text-xs text-emerald-200/60 mb-3 leading-relaxed">
-                  Click on any color in the image to remove it and all connected similar colors.
+                <p className="text-[10px] md:text-xs text-emerald-200/60 mb-2 md:mb-3 leading-relaxed">
+                  Click on any color in the image to remove it.
                 </p>
-                <div className="text-xs text-emerald-200/40">
-                  <strong className="text-emerald-400">Tip:</strong> Use for logos or if AI removes too much.
-                </div>
               </div>
 
               <Slider 
@@ -411,9 +435,6 @@ export default function App() {
                 onChange={setWandTolerance} 
                 disabled={!imageSrc}
               />
-              <p className="text-xs text-zinc-500">
-                Higher tolerance removes more colors similar to the one you click.
-              </p>
             </div>
           )}
         </div>
@@ -427,15 +448,19 @@ const ToolButton = ({ active, icon, label, onClick, danger, disabled }: any) => 
   <button
     onClick={onClick}
     disabled={disabled}
-    className={`w-full p-3 rounded-xl flex flex-col items-center gap-1 transition-all group ${
-      active 
+    className={`
+      p-2 md:p-3 rounded-xl flex flex-col items-center gap-1 transition-all group min-w-[60px] md:min-w-0 md:w-full
+      ${active 
         ? 'bg-zinc-800 text-white' 
         : 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'
-    } ${danger ? 'hover:text-red-400 hover:bg-red-900/10' : ''} ${disabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`}
+      } 
+      ${danger ? 'hover:text-red-400 hover:bg-red-900/10' : ''} 
+      ${disabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}
+    `}
   >
     <div className={`transition-transform duration-200 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
       {icon}
     </div>
-    <span className="text-[10px] font-medium">{label}</span>
+    <span className="text-[9px] md:text-[10px] font-medium whitespace-nowrap">{label}</span>
   </button>
 );
