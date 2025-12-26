@@ -3,7 +3,7 @@ import { Toolbar } from './components/Toolbar';
 import { ToolType, ImageAdjustments, FilterType, ProcessingStatus } from './types';
 import { loadImage, applyFilters, removeColorRange, transformImage, fileToDataUri } from './utils/imageUtils';
 import { removeBackgroundAI } from './services/aiService';
-import { Upload, AlertCircle, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Upload, AlertCircle, X, Image as ImageIcon, Loader2, CheckCircle2 } from 'lucide-react';
 
 const INITIAL_ADJUSTMENTS: ImageAdjustments = {
   brightness: 0,
@@ -21,6 +21,10 @@ function App() {
   const [activeFilter, setActiveFilter] = useState<FilterType>(FilterType.NONE);
   const [status, setStatus] = useState<ProcessingStatus>('IDLE');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  // Progress State
+  const [progress, setProgress] = useState<number>(0);
+  const [progressMessage, setProgressMessage] = useState<string>('');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,28 +107,37 @@ function App() {
   };
 
   const handleAutoRemoveBg = async () => {
-      // Use processed image if exists (e.g. already rotated), otherwise original
       const srcToUse = processedImageSrc || imageSrc;
       if (!srcToUse) return;
 
       setStatus('PROCESSING');
+      setProgress(0);
+      setProgressMessage('Initializing AI model...');
       setErrorMsg(null);
 
       try {
-          // This might take a while on first run (downloading models)
-          const resultUri = await removeBackgroundAI(srcToUse);
+          const resultUri = await removeBackgroundAI(srcToUse, (p, msg) => {
+              setProgress(p);
+              setProgressMessage(msg);
+          });
+          
           setProcessedImageSrc(resultUri);
           setAdjustments(INITIAL_ADJUSTMENTS);
           setActiveFilter(FilterType.NONE);
           setStatus('SUCCESS');
+          setProgress(100);
+          setProgressMessage('Complete!');
       } catch (e: any) {
           console.error(e);
           setStatus('ERROR');
-          setErrorMsg("AI Model failed to load. Please try again or check internet connection.");
+          setErrorMsg(e.message || "AI Model failed to load.");
       } finally {
         // Clear success status after a moment
         setTimeout(() => {
-            if (status !== 'ERROR') setStatus('IDLE');
+            if (status !== 'ERROR') {
+                setStatus('IDLE');
+                setProgress(0);
+            }
         }, 2000);
       }
   };
@@ -198,18 +211,38 @@ function App() {
 
              {/* Status Indicators */}
              {status === 'PROCESSING' && (
-                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-zinc-900/90 border border-zinc-700 text-zinc-200 px-6 py-4 rounded-xl flex flex-col items-center gap-2 backdrop-blur-md animate-in slide-in-from-top-4 fade-in shadow-2xl">
-                    <Loader2 size={28} className="animate-spin text-purple-500" />
-                    <span className="font-medium">AI Processing...</span>
-                    <span className="text-xs text-zinc-500">First run may take 10-20s to download models</span>
+                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-zinc-900/95 border border-zinc-700 text-zinc-200 px-8 py-6 rounded-2xl flex flex-col items-center gap-4 backdrop-blur-md animate-in slide-in-from-top-4 fade-in shadow-2xl min-w-[300px] z-50">
+                    <Loader2 size={32} className="animate-spin text-purple-500" />
+                    
+                    <div className="text-center space-y-1 w-full">
+                        <h3 className="font-semibold text-white">AI Processing</h3>
+                        <p className="text-xs text-zinc-400 truncate max-w-[250px] mx-auto">{progressMessage}</p>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                        <div 
+                            className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300 ease-out"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {status === 'SUCCESS' && (
+                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-green-500/10 border border-green-500/20 text-green-200 px-6 py-3 rounded-xl flex items-center gap-3 backdrop-blur-md animate-in slide-in-from-top-4 fade-in z-50">
+                    <CheckCircle2 size={20} className="text-green-500" />
+                    <span className="font-medium">Background Removed!</span>
                 </div>
             )}
 
             {(status === 'ERROR' || errorMsg) && (
-                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-red-500/10 border border-red-500/20 text-red-200 px-4 py-3 rounded-lg flex items-center gap-3 backdrop-blur-md animate-in slide-in-from-top-4 fade-in">
-                    <AlertCircle size={20} />
-                    <span>{errorMsg || "An error occurred"}</span>
-                    <button onClick={() => { setErrorMsg(null); setStatus('IDLE'); }} className="hover:text-white"><X size={16}/></button>
+                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-red-500/10 border border-red-500/20 text-red-200 px-6 py-4 rounded-xl flex items-center gap-3 backdrop-blur-md animate-in slide-in-from-top-4 fade-in z-50">
+                    <AlertCircle size={20} className="shrink-0" />
+                    <span className="text-sm font-medium">{errorMsg || "An error occurred"}</span>
+                    <button onClick={() => { setErrorMsg(null); setStatus('IDLE'); }} className="ml-2 hover:text-white hover:bg-red-500/20 p-1 rounded-md transition-colors">
+                        <X size={16}/>
+                    </button>
                 </div>
             )}
         </div>

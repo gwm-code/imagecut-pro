@@ -1,43 +1,34 @@
-// Access the global variable exposed by the UMD script in index.html
-declare global {
-  interface Window {
-    imglyRemoveBackground: (
-      blob: Blob | string, 
-      config: { 
-        publicPath: string; 
-        progress?: (key: string, current: number, total: number) => void 
-      }
-    ) => Promise<Blob>;
-  }
-}
+import { removeBackground, Config } from '@imgly/background-removal';
 
-// We point to the CDN for the heavy model assets (wasm, onnx, etc.)
+// We point to the CDN for the heavy model assets (wasm, onnx) to keep the bundle size small
+// and ensure fast delivery via JSDelivr global CDN.
 const MODEL_ASSET_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.5.0/dist/';
 
-export const removeBackgroundAI = async (imageSrc: string): Promise<string> => {
-  // Check if the script loaded
-  if (typeof window.imglyRemoveBackground !== 'function') {
-    throw new Error("AI Library not loaded. Please refresh the page.");
-  }
-
+export const removeBackgroundAI = async (
+    imageSrc: string,
+    onProgress?: (progress: number, message: string) => void
+): Promise<string> => {
   try {
-    // 1. Convert Data URI to Blob (Helper mainly for consistency, though lib accepts string too)
-    const response = await fetch(imageSrc);
-    const blob = await response.blob();
-
-    // 2. Run AI Removal using Global Function
-    const resultBlob = await window.imglyRemoveBackground(blob, {
+    const config: Config = {
       publicPath: MODEL_ASSET_URL,
+      // The library calls this function as it downloads different model chunks
       progress: (key: string, current: number, total: number) => {
-        const percent = Math.round((current / total) * 100);
-        console.log(`Downloading ${key}: ${percent}%`);
-      }
-    });
+        if (onProgress && total > 0) {
+           const percent = Math.round((current / total) * 100);
+           // Clean up the key name for display
+           const niceName = key.split('/').pop() || 'Model assets';
+           onProgress(percent, `Downloading ${niceName}...`);
+        }
+      },
+      debug: false // Set to true if you need to see library internal logs
+    };
 
-    // 3. Return as Data URI
-    return URL.createObjectURL(resultBlob);
+    // The removeBackground function from the npm package handles everything
+    const blob = await removeBackground(imageSrc, config);
+
+    return URL.createObjectURL(blob);
   } catch (error) {
     console.error("AI Removal Failed:", error);
-    throw new Error("Failed to remove background. Ensure you have an internet connection for the first run.");
+    throw new Error("Failed to remove background. Please check your internet connection and try again.");
   }
 };
