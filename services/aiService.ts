@@ -20,10 +20,7 @@ export const removeBackgroundAI = async (
            onProgress(percent, `Loading ${niceName}...`);
         }
       },
-      debug: true,
-      fetchArgs: {
-        mode: 'no-cors' // Extra safety for local fetching
-      }
+      debug: true
     };
 
     const blob = await removeBackground(imageSrc, config);
