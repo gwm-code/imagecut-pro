@@ -1,10 +1,9 @@
 import { removeBackground, Config } from '@imgly/background-removal';
 
-// Switching to Unpkg. 
-// static.img.ly causes DNS errors for some users.
-// JSDelivr sometimes fails directory lookups for this package.
-// Unpkg mirrors the exact npm directory structure, ensuring resources.json is found.
-const MODEL_ASSET_URL = 'https://unpkg.com/@imgly/background-removal-data@1.5.5/dist/';
+// We are using version 1.3.0.
+// This URL points to the assets specifically for version 1.3.0 on JSDelivr.
+// JSDelivr is generally reliable for CORS and directory structure for this specific version.
+const MODEL_ASSET_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal-data@1.3.0/dist/';
 
 export const removeBackgroundAI = async (
     imageSrc: string,
@@ -22,7 +21,7 @@ export const removeBackgroundAI = async (
            onProgress(percent, `Downloading ${niceName}...`);
         }
       },
-      debug: true // Keep debug enabled to spot any further CDN issues
+      debug: true // Enable debug to help trace issues in console
     };
 
     // The removeBackground function from the npm package handles everything
@@ -31,10 +30,17 @@ export const removeBackgroundAI = async (
     return URL.createObjectURL(blob);
   } catch (error) {
     console.error("AI Removal Failed:", error);
-    // Provide a more specific error message based on common issues
-    if (error instanceof Error && error.message.includes('fetch')) {
-        throw new Error("Failed to download AI model. If you use an AdBlocker, try disabling it, or check your internet.");
+    
+    // Check for common specific errors
+    if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+             throw new Error("Connection failed. This model requires internet access to download resources. Please check your connection or ad-blockers.");
+        }
+        if (error.message.includes('404')) {
+             throw new Error("Model resources not found. Please try refreshing the page.");
+        }
     }
+    
     throw new Error("Failed to remove background. Please try again.");
   }
 };
