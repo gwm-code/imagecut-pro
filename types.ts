@@ -8,7 +8,7 @@ export interface Adjustments {
   rotation: number;   // 0 degrees
 }
 
-export type ActiveTool = 'adjust' | 'filters' | 'remove-bg' | 'crop';
+export type ActiveTool = 'adjust' | 'filters' | 'magic-wand' | 'crop';
 
 export interface EditorState {
   imageSrc: string | null;

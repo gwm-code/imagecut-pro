@@ -8,20 +8,25 @@ import {
   Trash2, 
   Undo2,
   Image as ImageIcon,
-  Loader2
+  Loader2,
+  Eraser
 } from 'lucide-react';
 import { removeBackground } from '@imgly/background-removal';
 import { Slider } from './components/ui/Slider';
 import { Adjustments, ActiveTool } from './types';
-import { DEFAULT_ADJUSTMENTS, applyFiltersToCanvas, readFileAsDataURL } from './utils/imageProcessing';
+import { DEFAULT_ADJUSTMENTS, applyFiltersToCanvas, readFileAsDataURL, performMagicWand } from './utils/imageProcessing';
 
 export default function App() {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
   const [activeTool, setActiveTool] = useState<ActiveTool>('adjust');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
   
+  // Magic Wand State
+  const [wandTolerance, setWandTolerance] = useState(32);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const originalImageRef = useRef<HTMLImageElement | null>(null);
 
@@ -52,11 +57,27 @@ export default function App() {
     }
   }, [adjustments]);
 
+  const updateImageWithHistory = (newSrc: string) => {
+    if (imageSrc) {
+      setHistory(prev => [...prev.slice(-10), imageSrc]); // Keep last 10
+    }
+    setImageSrc(newSrc);
+  };
+
+  const handleUndo = () => {
+    if (history.length > 0) {
+      const previous = history[history.length - 1];
+      setImageSrc(previous);
+      setHistory(prev => prev.slice(0, -1));
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const url = await readFileAsDataURL(file);
       setImageSrc(url);
+      setHistory([]);
       setAdjustments(DEFAULT_ADJUSTMENTS);
     }
   };
@@ -77,8 +98,6 @@ export default function App() {
     setProcessingMessage('Downloading AI Model... (This happens once)');
     
     try {
-      // @imgly/background-removal works with blob or url
-      // We pass the config to ensure it fetches assets correctly from the public folder or CDN
       const blob = await removeBackground(imageSrc, {
         progress: (key: string, current: number, total: number) => {
           setProcessingMessage(`Processing: ${Math.round((current / total) * 100)}%`);
@@ -86,8 +105,8 @@ export default function App() {
       });
       
       const url = URL.createObjectURL(blob);
-      setImageSrc(url); // Replace current image with cut-out
-      setAdjustments(DEFAULT_ADJUSTMENTS); // Reset filters
+      updateImageWithHistory(url);
+      setAdjustments(DEFAULT_ADJUSTMENTS); 
       setActiveTool('adjust');
     } catch (error) {
       console.error(error);
@@ -98,6 +117,43 @@ export default function App() {
     }
   };
 
+  const handleCanvasClick = async (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (activeTool !== 'magic-wand' || !originalImageRef.current || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Calculate click position relative to canvas display size
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Calculate scaling factors
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    // Actual coordinates in the image
+    const actualX = Math.floor(x * scaleX);
+    const actualY = Math.floor(y * scaleY);
+
+    if (actualX >= 0 && actualX < canvas.width && actualY >= 0 && actualY < canvas.height) {
+      setIsProcessing(true);
+      setProcessingMessage('Applying Magic Wand...');
+      
+      // Use setTimeout to allow UI to show loading state
+      setTimeout(() => {
+        const newImageSrc = performMagicWand(
+          originalImageRef.current!, 
+          actualX, 
+          actualY, 
+          wandTolerance
+        );
+        updateImageWithHistory(newImageSrc);
+        setIsProcessing(false);
+        setProcessingMessage('');
+      }, 50);
+    }
+  };
+
   const updateAdjustment = (key: keyof Adjustments, value: number) => {
     setAdjustments(prev => ({ ...prev, [key]: value }));
   };
@@ -105,6 +161,7 @@ export default function App() {
   const resetCanvas = () => {
     if (confirm("Clear canvas?")) {
       setImageSrc(null);
+      setHistory([]);
       setAdjustments(DEFAULT_ADJUSTMENTS);
     }
   };
@@ -133,6 +190,12 @@ export default function App() {
             icon={<Wand2 size={20} />} 
             label="Filters" 
           />
+           <ToolButton 
+            active={activeTool === 'magic-wand'} 
+            onClick={() => setActiveTool('magic-wand')}
+            icon={<Eraser size={20} />} 
+            label="Magic Cut" 
+          />
           <div className="h-px bg-zinc-800 mx-2 my-2" />
            <ToolButton 
             active={false}
@@ -145,6 +208,13 @@ export default function App() {
         <div className="mt-auto space-y-4 w-full px-2">
            <ToolButton 
             active={false}
+            onClick={() => handleUndo()}
+            icon={<Undo2 size={20} />} 
+            label="Undo"
+            disabled={history.length === 0}
+          />
+           <ToolButton 
+            active={false}
             onClick={resetCanvas}
             icon={<Trash2 size={20} />} 
             label="Clear" 
@@ -155,7 +225,7 @@ export default function App() {
 
       {/* CENTER CANVAS AREA */}
       <main className="flex-1 relative bg-zinc-950 flex flex-col">
-        {/* Top Header inside main for mobile responsiveness usually, keeping simple here */}
+        {/* Top Header */}
         <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm">
           <h1 className="font-semibold text-lg tracking-tight">PureCut <span className="text-indigo-400">Pro</span></h1>
           
@@ -178,7 +248,7 @@ export default function App() {
         </header>
 
         {/* Canvas Wrapper */}
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-8">
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-8 bg-zinc-950/50">
           {!imageSrc ? (
             <div className="text-center p-12 border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30">
               <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -196,7 +266,8 @@ export default function App() {
             <div className="relative shadow-2xl rounded-sm overflow-hidden checkered-bg max-w-full max-h-full">
                <canvas 
                 ref={canvasRef} 
-                className="max-w-full max-h-[80vh] object-contain block"
+                onClick={handleCanvasClick}
+                className={`max-w-full max-h-[80vh] object-contain block ${activeTool === 'magic-wand' ? 'cursor-crosshair' : ''}`}
               />
               {isProcessing && (
                 <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-50 backdrop-blur-sm">
@@ -207,13 +278,22 @@ export default function App() {
             </div>
           )}
         </div>
+        
+        {/* Instruction Toast for Magic Wand */}
+        {activeTool === 'magic-wand' && imageSrc && (
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-zinc-800/90 text-zinc-200 px-4 py-2 rounded-full text-sm font-medium border border-zinc-700 shadow-xl pointer-events-none">
+            Click on a color to remove it (Magic Wand)
+          </div>
+        )}
       </main>
 
       {/* RIGHT PROPERTIES PANEL */}
       <aside className="w-72 bg-zinc-900 border-l border-zinc-800 flex flex-col z-10">
         <div className="p-5 border-b border-zinc-800">
           <h2 className="font-semibold text-sm uppercase tracking-wider text-zinc-500">
-            {activeTool === 'adjust' ? 'Adjustments' : 'Magic Tools'}
+            {activeTool === 'adjust' ? 'Adjustments' : 
+             activeTool === 'magic-wand' ? 'Magic Cut Tool' : 
+             activeTool === 'filters' ? 'AI & Filters' : 'Tools'}
           </h2>
         </div>
 
@@ -271,14 +351,14 @@ export default function App() {
                   <Wand2 size={14} /> AI Background Removal
                 </h3>
                 <p className="text-xs text-indigo-200/60 mb-3 leading-relaxed">
-                  Remove background automatically. Downloads model (~100MB) on first use.
+                  Best for people and objects. May over-crop complex logos.
                 </p>
                 <button
                   onClick={handleRemoveBackground}
                   disabled={!imageSrc || isProcessing}
                   className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors"
                 >
-                  Remove Background
+                  Remove Background (AI)
                 </button>
               </div>
 
@@ -302,6 +382,33 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {activeTool === 'magic-wand' && (
+            <div className="space-y-6">
+               <div className="p-4 bg-emerald-900/20 border border-emerald-900/50 rounded-lg mb-6">
+                <h3 className="text-emerald-300 text-sm font-medium mb-2 flex items-center gap-2">
+                  <Eraser size={14} /> Magic Cut Mode
+                </h3>
+                <p className="text-xs text-emerald-200/60 mb-3 leading-relaxed">
+                  Click on any color in the image to remove it and all connected similar colors.
+                </p>
+                <div className="text-xs text-emerald-200/40">
+                  <strong className="text-emerald-400">Tip:</strong> Use for logos or if AI removes too much.
+                </div>
+              </div>
+
+              <Slider 
+                label="Color Tolerance" 
+                value={wandTolerance} 
+                min={0} max={100} 
+                onChange={setWandTolerance} 
+                disabled={!imageSrc}
+              />
+              <p className="text-xs text-zinc-500">
+                Higher tolerance removes more colors similar to the one you click.
+              </p>
+            </div>
+          )}
         </div>
       </aside>
     </div>
@@ -309,14 +416,15 @@ export default function App() {
 }
 
 // Subcomponent for Toolbar Buttons
-const ToolButton = ({ active, icon, label, onClick, danger }: any) => (
+const ToolButton = ({ active, icon, label, onClick, danger, disabled }: any) => (
   <button
     onClick={onClick}
+    disabled={disabled}
     className={`w-full p-3 rounded-xl flex flex-col items-center gap-1 transition-all group ${
       active 
         ? 'bg-zinc-800 text-white' 
         : 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'
-    } ${danger ? 'hover:text-red-400 hover:bg-red-900/10' : ''}`}
+    } ${danger ? 'hover:text-red-400 hover:bg-red-900/10' : ''} ${disabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`}
   >
     <div className={`transition-transform duration-200 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
       {icon}
