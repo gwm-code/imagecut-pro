@@ -1,8 +1,10 @@
 import { removeBackground, Config } from '@imgly/background-removal';
 
-// Using the official static.img.ly CDN which is more reliable for these assets than JSDelivr.
-// We are pinning to version 1.3.0 which is known to have a stable directory structure.
-const MODEL_ASSET_URL = 'https://static.img.ly/background-removal-data/1.3.0/dist/';
+// Switching to Unpkg. 
+// static.img.ly causes DNS errors for some users.
+// JSDelivr sometimes fails directory lookups for this package.
+// Unpkg mirrors the exact npm directory structure, ensuring resources.json is found.
+const MODEL_ASSET_URL = 'https://unpkg.com/@imgly/background-removal-data@1.5.5/dist/';
 
 export const removeBackgroundAI = async (
     imageSrc: string,
@@ -20,7 +22,7 @@ export const removeBackgroundAI = async (
            onProgress(percent, `Downloading ${niceName}...`);
         }
       },
-      debug: true // Enable debug to help trace issues in console if they occur
+      debug: true // Keep debug enabled to spot any further CDN issues
     };
 
     // The removeBackground function from the npm package handles everything
@@ -29,6 +31,10 @@ export const removeBackgroundAI = async (
     return URL.createObjectURL(blob);
   } catch (error) {
     console.error("AI Removal Failed:", error);
-    throw new Error("Failed to remove background. Please check your internet connection and try again.");
+    // Provide a more specific error message based on common issues
+    if (error instanceof Error && error.message.includes('fetch')) {
+        throw new Error("Failed to download AI model. If you use an AdBlocker, try disabling it, or check your internet.");
+    }
+    throw new Error("Failed to remove background. Please try again.");
   }
 };
