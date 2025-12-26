@@ -1,276 +1,326 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Toolbar } from './components/Toolbar';
-import { ToolType, ImageAdjustments, FilterType, ProcessingStatus } from './types';
-import { loadImage, applyFilters, removeColorRange, transformImage, fileToDataUri } from './utils/imageUtils';
-import { removeBackgroundAI } from './services/aiService';
-import { Upload, AlertCircle, X, Image as ImageIcon, Loader2, CheckCircle2 } from 'lucide-react';
+import { 
+  Upload, 
+  Download, 
+  Wand2, 
+  Sliders, 
+  RotateCw, 
+  Trash2, 
+  Undo2,
+  Image as ImageIcon,
+  Loader2
+} from 'lucide-react';
+import { removeBackground } from '@imgly/background-removal';
+import { Slider } from './components/ui/Slider';
+import { Adjustments, ActiveTool } from './types';
+import { DEFAULT_ADJUSTMENTS, applyFiltersToCanvas, readFileAsDataURL } from './utils/imageProcessing';
 
-const INITIAL_ADJUSTMENTS: ImageAdjustments = {
-  brightness: 0,
-  contrast: 0,
-  saturation: 0,
-  blur: 0,
-};
-
-function App() {
-  const [activeTool, setActiveTool] = useState<ToolType>(ToolType.ADJUST);
+export default function App() {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [processedImageSrc, setProcessedImageSrc] = useState<string | null>(null); 
-  const [adjustments, setAdjustments] = useState<ImageAdjustments>(INITIAL_ADJUSTMENTS);
-  const [tolerance, setTolerance] = useState<number>(30);
-  const [activeFilter, setActiveFilter] = useState<FilterType>(FilterType.NONE);
-  const [status, setStatus] = useState<ProcessingStatus>('IDLE');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
+  const [activeTool, setActiveTool] = useState<ActiveTool>('adjust');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState('');
   
-  // Progress State
-  const [progress, setProgress] = useState<number>(0);
-  const [progressMessage, setProgressMessage] = useState<string>('');
-
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const originalImageRef = useRef<HTMLImageElement | null>(null);
 
-  // Load and draw image whenever dependencies change
+  // Initialize image on load
   useEffect(() => {
-    if (!imageSrc && !processedImageSrc) return;
-    
-    const render = async () => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) return;
+    if (imageSrc && canvasRef.current) {
+      const img = new Image();
+      img.src = imageSrc;
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        originalImageRef.current = img;
+        const canvas = canvasRef.current!;
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        applyFiltersToCanvas(canvas.getContext('2d')!, img, adjustments);
+      };
+    }
+  }, [imageSrc]);
 
-        // Use processed source if available (this contains transforms/erases), otherwise original
-        const srcToUse = processedImageSrc || imageSrc;
-        if (!srcToUse) return;
-
-        try {
-            const img = await loadImage(srcToUse);
-            
-            // Set canvas size to image size
-            canvas.width = img.width;
-            canvas.height = img.height;
-
-            ctx.drawImage(img, 0, 0);
-
-            // Apply filters and adjustments non-destructively on each render
-            applyFilters(ctx, canvas.width, canvas.height, adjustments, activeFilter);
-        } catch (e) {
-            console.error("Failed to render image", e);
-        }
-    };
-
-    render();
-  }, [imageSrc, processedImageSrc, adjustments, activeFilter]);
+  // Re-apply filters when adjustments change
+  useEffect(() => {
+    if (originalImageRef.current && canvasRef.current) {
+      applyFiltersToCanvas(
+        canvasRef.current.getContext('2d')!, 
+        originalImageRef.current, 
+        adjustments
+      );
+    }
+  }, [adjustments]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const dataUri = await fileToDataUri(file);
-        setImageSrc(dataUri);
-        setProcessedImageSrc(null);
-        setAdjustments(INITIAL_ADJUSTMENTS);
-        setActiveFilter(FilterType.NONE);
-        setErrorMsg(null);
-      } catch (e) {
-        setErrorMsg("Failed to load image.");
-      }
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const url = await readFileAsDataURL(file);
+      setImageSrc(url);
+      setAdjustments(DEFAULT_ADJUSTMENTS);
     }
   };
 
-  const handleCanvasClick = async (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (activeTool !== ToolType.REMOVE_BG) return;
-    
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
-    
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
-    
-    // Get clicked color from the CURRENT rendering (which includes adjustments)
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
-    const targetColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
-    
-    removeColorRange(ctx, canvas.width, canvas.height, targetColor, tolerance);
-    
-    const newDataUri = canvas.toDataURL('image/png');
-    setProcessedImageSrc(newDataUri);
-    setAdjustments(INITIAL_ADJUSTMENTS);
-    setActiveFilter(FilterType.NONE);
-  };
-
-  const handleAutoRemoveBg = async () => {
-      const srcToUse = processedImageSrc || imageSrc;
-      if (!srcToUse) return;
-
-      setStatus('PROCESSING');
-      setProgress(0);
-      setProgressMessage('Initializing AI model...');
-      setErrorMsg(null);
-
-      try {
-          const resultUri = await removeBackgroundAI(srcToUse, (p, msg) => {
-              setProgress(p);
-              setProgressMessage(msg);
-          });
-          
-          setProcessedImageSrc(resultUri);
-          setAdjustments(INITIAL_ADJUSTMENTS);
-          setActiveFilter(FilterType.NONE);
-          setStatus('SUCCESS');
-          setProgress(100);
-          setProgressMessage('Complete!');
-      } catch (e: any) {
-          console.error(e);
-          setStatus('ERROR');
-          setErrorMsg(e.message || "AI Model failed to load.");
-      } finally {
-        // Clear success status after a moment
-        setTimeout(() => {
-            if (status !== 'ERROR') {
-                setStatus('IDLE');
-                setProgress(0);
-            }
-        }, 2000);
-      }
-  };
-
-  const handleTransform = async (type: 'ROTATE_90' | 'FLIP_H' | 'FLIP_V') => {
-      const srcToUse = processedImageSrc || imageSrc;
-      if (!srcToUse) return;
-
-      const newDataUri = await transformImage(srcToUse, type);
-      setProcessedImageSrc(newDataUri);
-  };
-
-  const handleExport = () => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-        const link = document.createElement('a');
-        link.download = 'purecut-pro-edit.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+  const handleDownload = () => {
+    if (canvasRef.current) {
+      const link = document.createElement('a');
+      link.download = 'purecut-edited.png';
+      link.href = canvasRef.current.toDataURL('image/png');
+      link.click();
     }
   };
 
-  const handleReset = () => {
-      setAdjustments(INITIAL_ADJUSTMENTS);
-      setActiveFilter(FilterType.NONE);
+  const handleRemoveBackground = async () => {
+    if (!imageSrc) return;
+    
+    setIsProcessing(true);
+    setProcessingMessage('Downloading AI Model... (This happens once)');
+    
+    try {
+      // @imgly/background-removal works with blob or url
+      // We pass the config to ensure it fetches assets correctly from the public folder or CDN
+      const blob = await removeBackground(imageSrc, {
+        progress: (key: string, current: number, total: number) => {
+          setProcessingMessage(`Processing: ${Math.round((current / total) * 100)}%`);
+        }
+      });
+      
+      const url = URL.createObjectURL(blob);
+      setImageSrc(url); // Replace current image with cut-out
+      setAdjustments(DEFAULT_ADJUSTMENTS); // Reset filters
+      setActiveTool('adjust');
+    } catch (error) {
+      console.error(error);
+      alert('Failed to remove background. Ensure WebGL is enabled.');
+    } finally {
+      setIsProcessing(false);
+      setProcessingMessage('');
+    }
+  };
+
+  const updateAdjustment = (key: keyof Adjustments, value: number) => {
+    setAdjustments(prev => ({ ...prev, [key]: value }));
+  };
+
+  const resetCanvas = () => {
+    if (confirm("Clear canvas?")) {
+      setImageSrc(null);
+      setAdjustments(DEFAULT_ADJUSTMENTS);
+    }
   };
 
   return (
-    <div className="flex h-screen w-screen bg-black overflow-hidden font-sans">
+    <div className="flex h-screen bg-zinc-950 text-zinc-200 overflow-hidden">
       
-      {/* Main Workspace */}
-      <div className="flex-1 flex flex-col relative">
-        {/* Header */}
-        <header className="h-16 flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur z-10">
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-                    <ImageIcon className="text-white" size={18} />
-                </div>
-                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-400">
-                    PureCut Pro
-                </h1>
-            </div>
+      {/* LEFT TOOLBAR */}
+      <aside className="w-20 bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-6 z-10">
+        <div className="mb-8">
+          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/20">
+            <span className="text-2xl">✂️</span>
+          </div>
+        </div>
+
+        <div className="space-y-4 w-full px-2">
+          <ToolButton 
+            active={activeTool === 'adjust'} 
+            onClick={() => setActiveTool('adjust')}
+            icon={<Sliders size={20} />} 
+            label="Adjust" 
+          />
+          <ToolButton 
+            active={activeTool === 'filters'} 
+            onClick={() => setActiveTool('filters')}
+            icon={<Wand2 size={20} />} 
+            label="Filters" 
+          />
+          <div className="h-px bg-zinc-800 mx-2 my-2" />
+           <ToolButton 
+            active={false}
+            onClick={() => updateAdjustment('rotation', (adjustments.rotation + 90) % 360)}
+            icon={<RotateCw size={20} />} 
+            label="Rotate" 
+          />
+        </div>
+
+        <div className="mt-auto space-y-4 w-full px-2">
+           <ToolButton 
+            active={false}
+            onClick={resetCanvas}
+            icon={<Trash2 size={20} />} 
+            label="Clear" 
+            danger
+          />
+        </div>
+      </aside>
+
+      {/* CENTER CANVAS AREA */}
+      <main className="flex-1 relative bg-zinc-950 flex flex-col">
+        {/* Top Header inside main for mobile responsiveness usually, keeping simple here */}
+        <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-sm">
+          <h1 className="font-semibold text-lg tracking-tight">PureCut <span className="text-indigo-400">Pro</span></h1>
+          
+          <div className="flex gap-3">
+            <label className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg cursor-pointer transition-colors text-sm font-medium">
+              <Upload size={16} />
+              <span>Open Image</span>
+              <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+            </label>
             
-            <div className="flex items-center gap-4">
-                <label className="cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 border border-zinc-700">
-                    <Upload size={16} />
-                    Open Image
-                    <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                </label>
-            </div>
+            <button 
+              onClick={handleDownload}
+              disabled={!imageSrc}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white transition-colors text-sm font-medium shadow-lg shadow-indigo-900/20"
+            >
+              <Download size={16} />
+              <span>Export</span>
+            </button>
+          </div>
         </header>
 
-        {/* Canvas Area */}
-        <div ref={containerRef} className="flex-1 relative flex items-center justify-center bg-zinc-950 p-8 overflow-hidden">
-            {!imageSrc ? (
-                <div className="text-center text-zinc-500 space-y-4">
-                    <div className="w-24 h-24 rounded-2xl bg-zinc-900 mx-auto flex items-center justify-center border-2 border-dashed border-zinc-800 animate-pulse">
-                        <Upload size={32} className="opacity-50" />
-                    </div>
-                    <p className="font-medium text-zinc-400">Open an image to start editing</p>
+        {/* Canvas Wrapper */}
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-8">
+          {!imageSrc ? (
+            <div className="text-center p-12 border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/30">
+              <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ImageIcon className="text-zinc-500" size={32} />
+              </div>
+              <h3 className="text-xl font-medium text-zinc-300 mb-2">No image loaded</h3>
+              <p className="text-zinc-500 mb-6 max-w-xs mx-auto">Upload an image to start editing background, adjusting colors, and applying filters.</p>
+              <label className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl cursor-pointer transition-colors font-medium">
+                <Upload size={18} />
+                <span>Select Image</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+              </label>
+            </div>
+          ) : (
+            <div className="relative shadow-2xl rounded-sm overflow-hidden checkered-bg max-w-full max-h-full">
+               <canvas 
+                ref={canvasRef} 
+                className="max-w-full max-h-[80vh] object-contain block"
+              />
+              {isProcessing && (
+                <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-50 backdrop-blur-sm">
+                  <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+                  <p className="text-white font-medium">{processingMessage}</p>
                 </div>
-            ) : (
-                <div className="relative shadow-2xl shadow-black/50 max-w-full max-h-full">
-                   <canvas 
-                     ref={canvasRef} 
-                     className={`max-w-full max-h-[calc(100vh-8rem)] object-contain transition-all duration-200 ${activeTool === ToolType.REMOVE_BG ? 'cursor-crosshair' : 'cursor-default'}`}
-                     onClick={handleCanvasClick}
-                   />
-                </div>
-            )}
-
-             {/* Status Indicators */}
-             {status === 'PROCESSING' && (
-                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-zinc-900/95 border border-zinc-700 text-zinc-200 px-8 py-6 rounded-2xl flex flex-col items-center gap-4 backdrop-blur-md animate-in slide-in-from-top-4 fade-in shadow-2xl min-w-[300px] z-50">
-                    <Loader2 size={32} className="animate-spin text-purple-500" />
-                    
-                    <div className="text-center space-y-1 w-full">
-                        <h3 className="font-semibold text-white">AI Processing</h3>
-                        <p className="text-xs text-zinc-400 truncate max-w-[250px] mx-auto">{progressMessage}</p>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                        <div 
-                            className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300 ease-out"
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {status === 'SUCCESS' && (
-                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-green-500/10 border border-green-500/20 text-green-200 px-6 py-3 rounded-xl flex items-center gap-3 backdrop-blur-md animate-in slide-in-from-top-4 fade-in z-50">
-                    <CheckCircle2 size={20} className="text-green-500" />
-                    <span className="font-medium">Background Removed!</span>
-                </div>
-            )}
-
-            {(status === 'ERROR' || errorMsg) && (
-                <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-red-500/10 border border-red-500/20 text-red-200 px-6 py-4 rounded-xl flex items-center gap-3 backdrop-blur-md animate-in slide-in-from-top-4 fade-in z-50">
-                    <AlertCircle size={20} className="shrink-0" />
-                    <span className="text-sm font-medium">{errorMsg || "An error occurred"}</span>
-                    <button onClick={() => { setErrorMsg(null); setStatus('IDLE'); }} className="ml-2 hover:text-white hover:bg-red-500/20 p-1 rounded-md transition-colors">
-                        <X size={16}/>
-                    </button>
-                </div>
-            )}
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      </main>
 
-      {/* Right Toolbar */}
-      <div className="w-80 h-full shrink-0 z-20">
-        <Toolbar 
-            activeTool={activeTool}
-            setActiveTool={setActiveTool}
-            adjustments={adjustments}
-            setAdjustments={setAdjustments}
-            tolerance={tolerance}
-            setTolerance={setTolerance}
-            hasImage={!!imageSrc}
-            activeFilter={activeFilter}
-            setActiveFilter={setActiveFilter}
-            onRotate={() => handleTransform('ROTATE_90')}
-            onFlipH={() => handleTransform('FLIP_H')}
-            onFlipV={() => handleTransform('FLIP_V')}
-            onReset={handleReset}
-            onExport={handleExport}
-            onAutoRemoveBg={handleAutoRemoveBg}
-            isProcessing={status === 'PROCESSING'}
-        />
-      </div>
+      {/* RIGHT PROPERTIES PANEL */}
+      <aside className="w-72 bg-zinc-900 border-l border-zinc-800 flex flex-col z-10">
+        <div className="p-5 border-b border-zinc-800">
+          <h2 className="font-semibold text-sm uppercase tracking-wider text-zinc-500">
+            {activeTool === 'adjust' ? 'Adjustments' : 'Magic Tools'}
+          </h2>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 scrollbar-thin">
+          {activeTool === 'adjust' && (
+            <div className="space-y-6">
+              <Slider 
+                label="Brightness" 
+                value={adjustments.brightness} 
+                min={0} max={200} 
+                onChange={(v) => updateAdjustment('brightness', v)} 
+                unit="%"
+                disabled={!imageSrc}
+              />
+              <Slider 
+                label="Contrast" 
+                value={adjustments.contrast} 
+                min={0} max={200} 
+                onChange={(v) => updateAdjustment('contrast', v)} 
+                unit="%"
+                disabled={!imageSrc}
+              />
+              <Slider 
+                label="Saturation" 
+                value={adjustments.saturation} 
+                min={0} max={200} 
+                onChange={(v) => updateAdjustment('saturation', v)} 
+                unit="%"
+                disabled={!imageSrc}
+              />
+               <Slider 
+                label="Blur" 
+                value={adjustments.blur} 
+                min={0} max={20} 
+                onChange={(v) => updateAdjustment('blur', v)} 
+                unit="px"
+                disabled={!imageSrc}
+              />
+               <div className="pt-4 border-t border-zinc-800">
+                 <button 
+                  onClick={() => setAdjustments(DEFAULT_ADJUSTMENTS)}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  disabled={!imageSrc}
+                 >
+                   <Undo2 size={12} /> Reset Adjustments
+                 </button>
+               </div>
+            </div>
+          )}
+
+          {activeTool === 'filters' && (
+            <div className="space-y-6">
+               <div className="p-4 bg-indigo-900/20 border border-indigo-900/50 rounded-lg mb-6">
+                <h3 className="text-indigo-300 text-sm font-medium mb-2 flex items-center gap-2">
+                  <Wand2 size={14} /> AI Background Removal
+                </h3>
+                <p className="text-xs text-indigo-200/60 mb-3 leading-relaxed">
+                  Remove background automatically. Downloads model (~100MB) on first use.
+                </p>
+                <button
+                  onClick={handleRemoveBackground}
+                  disabled={!imageSrc || isProcessing}
+                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors"
+                >
+                  Remove Background
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <Slider 
+                  label="Grayscale" 
+                  value={adjustments.grayscale} 
+                  min={0} max={100} 
+                  onChange={(v) => updateAdjustment('grayscale', v)} 
+                  unit="%"
+                  disabled={!imageSrc}
+                />
+                <Slider 
+                  label="Sepia" 
+                  value={adjustments.sepia} 
+                  min={0} max={100} 
+                  onChange={(v) => updateAdjustment('sepia', v)} 
+                  unit="%"
+                  disabled={!imageSrc}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }
 
-export default App;
+// Subcomponent for Toolbar Buttons
+const ToolButton = ({ active, icon, label, onClick, danger }: any) => (
+  <button
+    onClick={onClick}
+    className={`w-full p-3 rounded-xl flex flex-col items-center gap-1 transition-all group ${
+      active 
+        ? 'bg-zinc-800 text-white' 
+        : 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'
+    } ${danger ? 'hover:text-red-400 hover:bg-red-900/10' : ''}`}
+  >
+    <div className={`transition-transform duration-200 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
+      {icon}
+    </div>
+    <span className="text-[10px] font-medium">{label}</span>
+  </button>
+);

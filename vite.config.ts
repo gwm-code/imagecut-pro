@@ -8,10 +8,19 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'node_modules/@imgly/background-removal-data/dist/*',
-          dest: 'assets/model-data'
+          src: 'node_modules/@imgly/background-removal/dist/*',
+          dest: 'assets/'
         }
       ]
     })
   ],
+  server: {
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp"
+    }
+  },
+  optimizeDeps: {
+    exclude: ['@imgly/background-removal']
+  }
 });
